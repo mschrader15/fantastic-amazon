@@ -1,0 +1,3 @@
+pandas
+keybert[all]
+bertopic[all]
