@@ -1,3 +1,5 @@
 pandas
 keybert[all]
 bertopic[all]
+bs4
+fake-useragent
