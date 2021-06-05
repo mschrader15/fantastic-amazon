@@ -79,15 +79,29 @@ class AmazonScrapper:
         return "https://www." + amazon_site + "/dp/product-reviews/" + product_asin + f"?pageNumber={page_number}"
 
     def scrape(self, amazon_site, url=None, asin=None):
-        reviews = {"date_info": [], "name": [],
-                   "title": [], "content": [], "rating": []}
-        asin = self.find_asin(url) if url else asin
-        page_1 = self.requester(self.generate_url(amazon_site, asin, 1), page_num=1)
-        total_pages = self._get_total_pages(page_1)
-        for page in range(total_pages):
-            response = page_1 if page < 1 else self.requester(self.generate_url(amazon_site, asin, page + 1), page_num=page)
-            self._page_scraper(response=response, reviews_dict=reviews)
-        self.close_browser()
+        count = 0
+        while True:
+            try:
+                reviews = {"date_info": [], "name": [], "title": [], "content": [], "rating": []}
+                asin = self.find_asin(url) if url else asin
+                url_1 = self.generate_url(amazon_site, asin, 1)
+                print(f"scraping: {url_1}")
+                page_1 = self.requester(url_1, page_num=1)
+                total_pages = self._get_total_pages(page_1)
+                for page in range(total_pages):
+                    response = page_1 if page < 1 else self.requester(self.generate_url(amazon_site, asin, page + 1), page_num=page)
+                    try:    
+                        self._page_scraper(response=response, reviews_dict=reviews)
+                    except Exception as e:
+                        print(e)
+                        pass
+                self.close_browser()
+                break
+            except Exception as e:
+                print(e)
+                count += 1
+                if count > 5:
+                    raise Exception("Pulling Reviews Failed")
         return reviews
 
     def close_browser(self, ):
@@ -98,7 +112,6 @@ class AmazonScrapper:
         self.browser = None
 
     def _page_scraper(self, response: requests.Response, reviews_dict: dict):
-
         reviews = BeautifulSoup(response, 'html.parser').findAll(
             "div", {"class": "a-section review aok-relative"})
         reviews = BeautifulSoup(

@@ -1,5 +1,6 @@
 # ignore the Data folder
 data/*
+.vscode
 
 
 # Jupyter stuff
