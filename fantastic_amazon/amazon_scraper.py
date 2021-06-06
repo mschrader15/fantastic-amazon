@@ -1,3 +1,4 @@
+import selenium.common.exceptions
 from selenium import webdriver
 from fake_useragent import UserAgent
 import requests
@@ -36,11 +37,12 @@ def proxy_generator():
 
 
 
-def change_proxy(proxy_info, ua):
+def change_proxy(proxy_info, ua, headless=False):
     "Define Firefox Profile with you ProxyHost and ProxyPort"
     profile = webdriver.FirefoxProfile()
     fireFoxOptions = webdriver.FirefoxOptions()
-    # fireFoxOptions.set_headless()
+    if headless:
+        fireFoxOptions.set_headless()
     profile.set_preference("network.proxy.type", 1)
     profile.set_preference("network.proxy.http", proxy_info['ip'])
     profile.set_preference("network.proxy.http_port", int(proxy_info['port']))
@@ -59,12 +61,27 @@ class AmazonScrapper:
 
         self.proxies = proxy_generator()
         self.browser = None
+        self.headless = False
 
     def requester(self, url, page_num, try_count=0, ):
-        self.browser = change_proxy(random.choice(self.proxies), ua.random) if not self.browser else self.browser
+        self.browser = change_proxy(random.choice(self.proxies), ua.random, self.headless) if not self.browser else self.browser
         while True:
-            self.browser.get(url) if page_num <= 1 else self.browser.find_element_by_css_selector('.a-last > a:nth-child(1)').click()
+            if page_num <= 1:
+                self.browser.get(url)  
+            else:
+                refresh_count = 0
+                while True: 
+                    try:
+                        self.browser.find_element_by_css_selector('.a-last > a:nth-child(1)').click()
+                        break
+                    except selenium.common.exceptions.NoSuchElementException:
+                        self.browser.refresh()
+                        refresh_count += 1
+                        if refresh_count > 5:
+                            self.browser.get(url)
+    
             response = self.browser.page_source
+    
             if "api-services-support@amazon.com" in response:                               
                 if try_count > 5:
                     raise Exception("CAPTCHA is not bypassed")                              
@@ -72,14 +89,20 @@ class AmazonScrapper:
                 self.requester(url, page_num=page_num, try_count=try_count+1)
             else:
                 break
+    
         time.sleep(random.uniform(3, 10))
+    
         return response
 
     def generate_url(self, amazon_site, product_asin, page_number):
-        return "https://www." + amazon_site + "/dp/product-reviews/" + product_asin + f"?pageNumber={page_number}"
+        return "".join(["https://www.", amazon_site, "/dp/product-reviews/", product_asin, f"?pageNumber={page_number}"])
 
-    def scrape(self, amazon_site, url=None, asin=None):
+    def generate_product_url(self, amazon_site, product_asin,):
+        return "".join(["https://www.", amazon_site, "/dp/", product_asin])
+    
+    def scrape(self, amazon_site, url=None, asin=None, headless=False):
         count = 0
+        self.headless = headless
         while True:
             try:
                 reviews = {"date_info": [], "name": [], "title": [], "content": [], "rating": []}
@@ -89,20 +112,37 @@ class AmazonScrapper:
                 page_1 = self.requester(url_1, page_num=1)
                 total_pages = self._get_total_pages(page_1)
                 for page in range(total_pages):
-                    response = page_1 if page < 1 else self.requester(self.generate_url(amazon_site, asin, page + 1), page_num=page)
+                    url = self.generate_url(amazon_site, asin, page + 1)
+                    response = page_1 if page < 1 else self.requester(url, page_num=page)
                     try:    
                         self._page_scraper(response=response, reviews_dict=reviews)
                     except Exception as e:
-                        print(e)
+                        print(e, url)
                         pass
                 self.close_browser()
-                break
+                return reviews
             except Exception as e:
                 print(e)
                 count += 1
                 if count > 5:
                     raise Exception("Pulling Reviews Failed")
-        return reviews
+
+
+    def scrape_product_page(self, amazon_site, url=None, asin=None, headless=False):
+        self.headless = headless
+        count = 0
+        while True:
+            try:
+                asin = self.find_asin(url) if url else asin
+                url_1 = self.generate_product_url(amazon_site, asin)
+                page_1 = self.requester(url_1, page_num=1)
+                return self._product_page_scraper(page_1, )
+            except Exception as e:
+                print(e)
+                count += 1
+                if count > 5:
+                    raise Exception("Pulling Reviews Failed")
+        
 
     def close_browser(self, ):
         try:
@@ -111,6 +151,15 @@ class AmazonScrapper:
             pass
         self.browser = None
 
+    def _product_page_scraper(self, response: requests.Response):
+        product_page = BeautifulSoup(response, 'html.parser')
+        title = product_page.select('#productTitle')[0].text.strip()
+        price = product_page.select('#priceblock_ourprice')[0].text.strip()
+        bullets = [span.txt for span in product_page.select('#feature-bullets')[0].findAll("span", {"class": "a-list-item"}) if not any('hidden' in _cls for _cls in span.previous.attrs['class'])]
+        aplus_content = product_page.findAll("div", {"id": "aplus3p_feature_div"})[0].text.strip()
+        rating = product_page.findAll("span", {"data-hook": "rating-out-of-text"})[0].text.split(' out')[0]
+        return {'title': title, 'price': price, 'bullets': bullets, 'aplus_content': aplus_content, 'rating': rating}
+        
     def _page_scraper(self, response: requests.Response, reviews_dict: dict):
         reviews = BeautifulSoup(response, 'html.parser').findAll(
             "div", {"class": "a-section review aok-relative"})
@@ -148,5 +197,5 @@ class AmazonScrapper:
 
 if __name__ == "__main__":
 
-    AmazonScrapper().scrape("amazon.com", url="https://www.amazon.com/StarTech-com-2-Port-USB-C-HDMI-MST/dp/B06XPVGQKY/ref=sr_1_6?dchild=1&keywords=USB-C+to+Dual+hdmi+Video+Adapter&qid=1621983776&sr=8-6")
+    AmazonScrapper().scrape_product_page("amazon.com", url="https://www.amazon.com/dp/B00ECDM78E/")
     
