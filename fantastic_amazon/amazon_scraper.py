@@ -68,9 +68,15 @@ class AmazonScrapper:
         self.browser.get(url)
         search_bar = self.browser.find_element_by_id('twotabsearchtextbox')
         search_bar.send_keys(search_terms)
-        suggestions = self.browser.find_element_by_id('suggestions')
+        search_bar.click()
+        # search_bar.send_keys(' ')
+        time.sleep(random.uniform(1, 2))
+        try:
+            suggestions = self.browser.find_element_by_id('suggestions').text.split('\n')
+        except Exception as e:
+            suggestions = []
         self.browser.find_element_by_id('nav-search-submit-button').click()
-        return self.browser.page_source, suggestions.text.split('\n')
+        return self.browser.page_source, suggestions
 
     def requester(self, url, page_num, try_count=0, ):
         self.browser = change_proxy(random.choice(
@@ -151,7 +157,7 @@ class AmazonScrapper:
                 self.close_browser()
                 return results
             except Exception as e:
-                print(f"Errored out on {url_1}", e)
+                print(f"Errored out on {search_terms}", e)
                 count += 1
                 if count > 5:
                     self.close_browser()
@@ -186,12 +192,19 @@ class AmazonScrapper:
         product_cards = search_page.findAll('div', {'class': 's-asin'})
         results = {}
         for product in product_cards:
-            index = product.attrs['data-index']
-            results[index] = {
-                'asin': product.attrs['data-asin'],
-                'ad': 'AdHolder' in product.attrs['class'],
-                'amazon_choice': "Amazon's Choice" in product.text
-            }
+            try:
+                index = product.attrs['data-index']
+                results[index] = {
+                    'asin': product.attrs['data-asin'],
+                    'ad': 'AdHolder' in product.attrs['class'],
+                    'amazon_choice': "Amazon's Choice" in product.text,
+                    'title': product.findAll('span', {"class": "a-size-medium a-color-base a-text-normal"})[0].text,
+                    'price': float(product.findAll('span', {"class": "a-price-whole"})[0].text.strip('.').strip(',')) +  
+                             float(product.findAll('span', {"class": "a-price-fraction"})[0].text) / 100,
+                    "coupon": 'coupon' in product.text
+                }
+            except IndexError:
+                pass
         return results
 
     def _product_page_scraper(self, response: requests.Response):
@@ -254,4 +267,4 @@ class AmazonScrapper:
 
 if __name__ == "__main__":
 
-    AmazonScrapper().scrape_search("amazon.com", search_terms="Triple Display Dock")
+    AmazonScrapper().scrape_search("amazon.com", search_terms="USBC to 4K DisplayPort")
