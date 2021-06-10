@@ -19,7 +19,6 @@ ua = UserAgent(verify_ssl=False)
 
 # browser = webdriver.Firefox()
 
-
 def proxy_generator():
     proxies = []
     response = requests.get("https://sslproxies.org/")
