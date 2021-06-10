@@ -199,11 +199,11 @@ class AmazonScrapper:
                     'ad': 'AdHolder' in product.attrs['class'],
                     'amazon_choice': "Amazon's Choice" in product.text,
                     'title': product.findAll('span', {"class": "a-size-medium a-color-base a-text-normal"})[0].text,
-                    'price': float(product.findAll('span', {"class": "a-price-whole"})[0].text.strip('.').strip(',')) +  
+                    'price': float(product.findAll('span', {"class": "a-price-whole"})[0].text.strip('.').replace(',', '')) +  
                              float(product.findAll('span', {"class": "a-price-fraction"})[0].text) / 100,
                     "coupon": 'coupon' in product.text
                 }
-            except IndexError:
+            except (IndexError, ValueError):
                 pass
         return results
 
@@ -267,4 +267,6 @@ class AmazonScrapper:
 
 if __name__ == "__main__":
 
-    AmazonScrapper().scrape_search("amazon.com", search_terms="USBC to 4K DisplayPort")
+    resutls = AmazonScrapper().scrape_search("amazon.com", search_terms="USBC to 4K DisplayPort")
+
+    resutls
