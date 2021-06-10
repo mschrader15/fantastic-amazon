@@ -200,7 +200,8 @@ class AmazonScrapper:
                     'title': product.findAll('span', {"class": "a-size-medium a-color-base a-text-normal"})[0].text,
                     'price': float(product.findAll('span', {"class": "a-price-whole"})[0].text.strip('.').replace(',', '')) +  
                              float(product.findAll('span', {"class": "a-price-fraction"})[0].text) / 100,
-                    "coupon": 'coupon' in product.text
+                    "coupon": 'coupon' in product.text,
+                    "review_num": int(product.findAll('span', {"class": "a-size-base"})[0].text.replace(',', ''))
                 }
             except (IndexError, ValueError):
                 pass
