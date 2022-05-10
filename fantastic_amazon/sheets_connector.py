@@ -28,7 +28,7 @@ AUTHORIZED_USER_FILE = os.environ.get("GOOGLE_API_JSON")
 class GoogleSheets:
 
     def __init__(self, sheet_key, sheet_name, service_file=None):
-        self.gc = pygsheets.authorize(service_file=AUTHORIZED_USER_FILE if not service_file else service_file) 
+        self.gc = pygsheets.authorize(service_file=service_file) 
         self.s = self.gc.open_by_key(sheet_key)
         self.w = self.s.worksheet_by_title(sheet_name)
         
